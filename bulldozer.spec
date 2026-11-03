@@ -19,8 +19,7 @@ version = 1.0
 # Dependencies ที่ต้องติดตั้งใน APK
 # - python3 และ kivy จำเป็น
 # - urllib, hashlib, json, math, random, re มีใน standard library อยู่แล้ว ไม่ต้องใส่
-requirements = python3,kivy==2.3.1,urllib3,chardet,idna,certifi
-
+requirements = python3,kivy==2.3.1,cython==0.29.36,urllib3,chardet,idna,certifi
 # การตั้งค่าหน้าจอ
 orientation = portrait
 fullscreen = 0
