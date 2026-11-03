@@ -24,23 +24,34 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      # นี่คือพระเอกของเรา: ดึง SDK + ยอมรับ License ให้เสร็จสรรพ
-      - name: Setup Android SDK & Accept Licenses
-        uses: android-actions/setup-android@v3
-
-      - name: Install System Dependencies
+      - name: Install Dependencies & Accept Licenses
         run: |
           sudo apt-get update
-          sudo apt-get install -y git zip unzip autoconf libtool pkg-config \
-          zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev
+          sudo apt-get install -y git zip unzip openjdk-17-jdk python3-pip \
+          autoconf libtool pkg-config zlib1g-dev libncurses5-dev \
+          libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev
           pip3 install --upgrade buildozer cython==0.29.36 virtualenv
-
+          
+          # สร้างโฟลเดอร์ SDK และรับ License ล่วงหน้าแบบไม่พึ่ง Action
+          mkdir -p ~/.buildozer/android/platform/android-sdk
+          
       - name: Build APK with Buildozer
         run: |
           export PATH=$PATH:~/.local/bin
-          # สั่ง Buildozer ให้ใช้ SDK ที่ Setup ไว้ให้แล้ว (ไม่ต้องโหลดใหม่)
-          export ANDROID_HOME=$ANDROID_SDK_ROOT
-          buildozer android debug
+          
+          # รัน Buildozer รอบแรกเพื่อดาวน์โหลด SDK (ปล่อยให้พังเรื่อง license ไปก่อน)
+          buildozer -v android debug || true
+          
+          # หาไฟล์ sdkmanager และสั่งรับ License ตรงๆ
+          SDKMANAGER=$(find ~/.buildozer/android/platform/android-sdk -name sdkmanager | head -n 1)
+          if [ -n "$SDKMANAGER" ]; then
+            echo "Found sdkmanager at $SDKMANAGER"
+            # ใช้ yes ส่งค่า y เข้าไป (ถ้ามันขึ้น Broken pipe ให้ถือว่าผ่าน)
+            yes | $SDKMANAGER --licenses || true
+          fi
+          
+          # รัน Buildozer รอบจริง (รอบนี้จะผ่านแล้ว)
+          buildozer -v android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
