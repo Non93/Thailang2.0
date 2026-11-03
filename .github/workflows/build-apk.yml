@@ -29,17 +29,18 @@ jobs:
       - name: Build APK
         run: |
           export PATH=$PATH:~/.local/bin
-          # รัน buildozer 1 ครั้งเพื่อให้มันดาวน์โหลด SDK มาก่อน (ถ้ายังไม่มี)
+          # รัน buildozer 1 ครั้งเพื่อสร้างโฟลเดอร์ SDK
           buildozer android debug || true
           
-          # ยอมรับ License ทั้งหมดแบบอัตโนมัติ
-          if [ -f ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager ]; then
-            yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses
-          elif [ -f ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager ]; then
-            yes | ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager --licenses
+          # วิธีแก้ Broken pipe: ใช้ printf พ่น y จำนวนมากแทนคำสั่ง yes
+          if [ -d ~/.buildozer/android/platform/android-sdk/cmdline-tools ]; then
+            SDKMANAGER=$(find ~/.buildozer/android/platform/android-sdk -name sdkmanager | head -n 1)
+            if [ -n "$SDKMANAGER" ]; then
+              printf 'y\n%.0s' {1..50} | $SDKMANAGER --licenses || true
+            fi
           fi
 
-          # รัน Build จริงอีกรอบ (รอบนี้จะผ่านแล้ว)
+          # รัน Build รอบจริง
           buildozer android debug
 
       - name: Upload APK
