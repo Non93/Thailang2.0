@@ -17,7 +17,19 @@ jobs:
 
       - name: Build APK
         run: |
-          # ใช้ echo ส่งคำว่า y เข้าไปตอบคำถามเรื่อง Root แทน
+          # สร้างโฟลเดอร์ SDK และบังคับรับ License ก่อนเริ่ม Build
+          mkdir -p ~/.buildozer/android/platform/android-sdk
+          
+          # รัน buildozer รอบแรกเพื่อดึง SDK (ปล่อยให้พังเรื่อง license)
+          echo "y" | buildozer android debug || true
+          
+          # หา sdkmanager แล้วกดรับ license ให้ครบ
+          SDKMANAGER=$(find ~/.buildozer/android/platform/android-sdk -name sdkmanager | head -n 1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | $SDKMANAGER --licenses > /dev/null 2>&1 || true
+          fi
+          
+          # รัน buildozer รอบจริง (รอบนี้จะผ่านแล้ว)
           echo "y" | buildozer android debug
 
       - name: Upload APK
