@@ -17,7 +17,8 @@ jobs:
 
       - name: Build APK
         run: |
-          buildozer -y android debug
+          # ใช้ echo ส่งคำว่า y เข้าไปตอบคำถามเรื่อง Root แทน
+          echo "y" | buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
