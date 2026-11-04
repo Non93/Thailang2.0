@@ -42,14 +42,6 @@ jobs:
           restore-keys: |
             buildozer-${{ runner.os }}-
 
-      - name: Pre-create SDK License Files
-        run: |
-          export SDK_PATH=$HOME/.buildozer/android/platform/android-sdk
-          mkdir -p $SDK_PATH/licenses
-          echo -e "\n8933bad161af4b6a5b573652ffc7aaf3aee85a47" > $SDK_PATH/licenses/android-sdk-license
-          echo -e "\nd56f5187479451eabf01fb78af6dfcb131b33910" >> $SDK_PATH/licenses/android-sdk-license
-          echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $SDK_PATH/licenses/android-sdk-preview-license
-
       - name: Build APK with Buildozer
         run: |
           export PATH=$PATH:~/.local/bin
