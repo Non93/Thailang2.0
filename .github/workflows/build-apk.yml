@@ -9,7 +9,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     container:
-      image: kivy/buildozer:latest  # ใช้ Image ทางการของ Kivy ที่พร้อม Build
+      image: kivy/buildozer:latest
 
     steps:
       - name: Checkout Code
@@ -17,8 +17,7 @@ jobs:
 
       - name: Build APK
         run: |
-          # สั่ง build โดยใช้ค่าจาก buildozer.spec
-          buildozer android debug
+          buildozer -y android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
