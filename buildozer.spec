@@ -10,10 +10,8 @@ orientation = portrait
 fullscreen = 0
 android.permissions = INTERNET
 
-# ล็อคเวอร์ชันให้เป็น 31 ซึ่งเป็นเวอร์ชันที่ Build ผ่านชัวร์ๆ
-android.api = 31
+# ปล่อย android.api กับ build_tools_version ไว้ (ให้มันใช้ค่า default)
 android.minapi = 21
-android.build_tools_version = 31.0.0
 android.archs = arm64-v8a, armeabi-v7a
 
 [buildozer]
