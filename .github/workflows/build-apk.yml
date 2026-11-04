@@ -19,7 +19,7 @@ jobs:
           python-version: '3.10'
 
       - name: Set up Java JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -31,21 +31,25 @@ jobs:
           zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev
           pip3 install --upgrade buildozer cython==0.29.36 virtualenv
 
-      - name: Download Android SDK Command Line Tools
+      - name: Pre-download and Setup SDK
         run: |
-          # สร้างโฟลเดอร์ SDK ของ Buildozer
-          mkdir -p ~/.buildozer/android/platform/android-sdk
+          mkdir -p $HOME/.buildozer/android/platform
+          cd $HOME/.buildozer/android/platform
           
-          # ดาวน์โหลด cmdline-tools ไปวางไว้ในโฟลเดอร์ของ Buildozer เลย
-          cd ~/.buildozer/android/platform/android-sdk
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
-          mkdir -p cmdline-tools
-          unzip -q cmdline-tools.zip -d cmdline-tools
-          mv cmdline-tools/cmdline-tools cmdline-tools/latest
-          rm cmdline-tools.zip
+          # โหลด cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mkdir -p android-sdk/cmdline-tools
+          mv cmdline-tools android-sdk/cmdline-tools/latest
           
-          # กดรับ License ทุกตัวล่วงหน้า
-          yes | cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          # สร้างโฟลเดอร์ tools หลอกๆ เพื่อให้ Buildozer หา sdkmanager เจอ
+          mkdir -p android-sdk/tools/bin
+          ln -s $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
+          ln -s $HOME/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/avdmanager $HOME/.buildozer/android/platform/android-sdk/tools/bin/avdmanager
+          
+          # กดรับ License
+          export ANDROID_HOME=$HOME/.buildozer/android/platform/android-sdk
+          yes | $ANDROID_HOME/tools/bin/sdkmanager --licenses > /dev/null 2>&1 || true
 
       - name: Build APK with Buildozer
         run: |
