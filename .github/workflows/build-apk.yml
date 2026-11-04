@@ -1,39 +1,19 @@
-name: Build APK
+[app]
+title = ThaiLang Compiler
+package.name = thailang
+package.domain = org.thaicompiler
+source.dir = .
+source.include_exts = py,png,jpg,kv,atlas,json,ttf,txt
+version = 1.0
+requirements = python3,kivy==2.3.1,cython==0.29.36
+orientation = portrait
+fullscreen = 0
+android.permissions = INTERNET
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+# ปล่อย android.api กับ build_tools_version ไว้ (ให้มันใช้ค่า default)
+android.minapi = 21
+android.archs = arm64-v8a, armeabi-v7a
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    container:
-      image: kivy/buildozer:latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Build APK
-        run: |
-          # สร้างโฟลเดอร์ SDK และบังคับรับ License ก่อนเริ่ม Build
-          mkdir -p ~/.buildozer/android/platform/android-sdk
-          
-          # รัน buildozer รอบแรกเพื่อดึง SDK (ปล่อยให้พังเรื่อง license)
-          echo "y" | buildozer android debug || true
-          
-          # หา sdkmanager แล้วกดรับ license ให้ครบ
-          SDKMANAGER=$(find ~/.buildozer/android/platform/android-sdk -name sdkmanager | head -n 1)
-          if [ -n "$SDKMANAGER" ]; then
-            yes | $SDKMANAGER --licenses > /dev/null 2>&1 || true
-          fi
-          
-          # รัน buildozer รอบจริง (รอบนี้จะผ่านแล้ว)
-          echo "y" | buildozer android debug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: thailang-apk
-          path: bin/*.apk
+[buildozer]
+log_level = 2
+warn_on_root = 1
