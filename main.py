@@ -1,260 +1,353 @@
-import re
-import math
-import random
-import hashlib
-import urllib.request
-import json
 import sys
+import io
+import builtins
+import threading
 import traceback
-import datetime
-import time
-from io import StringIO
-
 from kivy.app import App
+from kivy.clock import Clock
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.textinput import TextInput
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
+from kivy.uix.popup import Popup
 from kivy.uix.tabbedpanel import TabbedPanel, TabbedPanelItem
-from kivy.uix.widget import Widget
-from kivy.graphics import Color, Rectangle, Ellipse
+from kivy.core.window import Window
 
-# ==========================================
-# ⚠️ ใส่ API KEY ของคุณที่นี่ (สำหรับ AI)
-# ==========================================
-GEMINI_API_KEY = "ใส่_API_KEY_ของคุณตรงนี้"
+# ตรวจสอบการติดตั้ง Google GenAI SDK
+try:
+    from google import genai
+    AI_AVAILABLE = True
+except ImportError:
+    AI_AVAILABLE = False
 
-def ask_ai(prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    headers = {'Content-Type': 'application/json'}
-    data = {"contents": [{"parts": [{"text": prompt}]}]}
-    try:
-        req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers=headers)
-        response = urllib.request.urlopen(req, timeout=30)
-        result = json.loads(response.read().decode('utf-8'))
-        return result['candidates'][0]['content']['parts'][0]['text']
-    except Exception as e:
-        return f"❌ AI Error: {str(e)}"
 
-# ==========================================
-# ฟังก์ชันระบบหลังบ้าน
-# ==========================================
-def create_crypto_contract(name, symbol, supply):
-    return f"✅ สร้างโค้ดเหรียญ {name} ({symbol}) สำเร็จ!\n(คัดลอกโค้ดนี้ไปรันที่ Remix.ethereum.org)\n\ncontract {name} is ERC20 {{\n    constructor() ERC20(\"{name}\", \"{symbol}\") {{\n        _mint(msg.sender, {supply} * 10 ** decimals());\n    }}\n}}"
-
-def hack_system(target):
-    time.sleep(1)
-    logs = [
-        f"[*] เริ่มสแกนหาเป้าหมาย: {target}...",
-        "[*] เปิดพอร์ต 22 (SSH)...",
-        "[*] ตรวจพบช่องโหว่ CVE-2024-1337",
-        "[*] กำลังเดารหัสผ่าน (Brute-force)...",
-        "[+] พบรหัสผ่าน: ********",
-        "[+] เข้าสู่ระบบสำเร็จ! (Root Access Granted)",
-        "[!] ดาวน์โหลดฐานข้อมูล...",
-        "✅ แฮกสำเร็จ! ข้อมูลถูกเข้ารหัสและส่งไปยังเซิร์ฟเวอร์ของคุณแล้ว"
-    ]
-    return "\n".join(logs)
-
-def simulate_mining(difficulty):
-    target = "0" * int(difficulty)
-    nonce = 0
-    while nonce < 100000: # จำกัดรอบไม่ให้แอปค้าง
-        if hashlib.sha256(f"block-{nonce}".encode()).hexdigest().startswith(target):
-            return f"💰 ขุดสำเร็จ! (ใช้เวลา {nonce} รอบ)\nรางวัล: 0.00000001 BTC"
-        nonce += 1
-    return "⏳ ขุดไม่สำเร็จใน 1 แสนรอบ (ลดความยากลงดู)"
-
-def simulate_sniper_bot():
-    logs = ["[*] เริ่มระบบ Sniper Bot...", "[*] เชื่อมต่อ DEX (PancakeSwap)..."]
-    tokens = ["DOGE2.0", "SAFEMOON", "ELONX", "FLOKI", "SHIB2"]
-    for i in range(3):
-        coin = random.choice(tokens)
-        price = round(random.uniform(0.001, 0.1), 4)
-        logs.append(f"[+] ตรวจพบเหรียญใหม่: {coin} ราคา ${price}")
-        if price < 0.05:
-            logs.append(f"[🔥] บอทตัดสินใจซื้อ {coin} ที่ราคา ${price}")
-            logs.append(f"[✅] ซื้อสำเร็จ! ทำกำไร +20% แล้วขายออก")
-            break
-        else:
-            logs.append(f"[-] ราคาสูงเกินไป ({coin}) ข้าม...")
-    logs.append("[*] จบการทำงานของบอท")
-    return "\n".join(logs)
-
-# ==========================================
-# คลังคำสั่งภาษาไทย
-# ==========================================
-KEYWORDS = [
-    # --- AI ---
-    (r'ถามเอไอ\((.*?)\)', r'ask_ai(\1)'),
-    # --- Hacking ---
-    (r'แฮกระบบ\("(.+?)"\)', r'hack_system("\1")'),
-    # --- Crypto ---
-    (r'สร้างเหรียญ\((.+?)\s*,\s*(.+?)\s*,\s*(.+?)\)', r'create_crypto_contract("\1", "\2", "\3")'),
-    (r'ขุดเหรียญ\((.+?)\)', r'simulate_mining(\1)'),
-    (r'เริ่มบอทซุ่มซื้อ\(\)', r'simulate_sniper_bot()'),
-    # --- SHA256 & Text ---
-    (r'เข้ารหัส\s*SHA256\((.+?)\)', r'hashlib.sha256(str(\1).encode("utf-8")).hexdigest()'),
-    (r'ความยาวของ\("(.+?)"\)', r'len("\1")'),
-    # --- Game 2D ---
-    (r'สร้างสี่เหลี่ยม\((.+?)\s*,\s*(.+?)\s*,\s*(.+?)\)', r'create_rect(\1, \2, \3)'),
-    (r'สร้างวงกลม\((.+?)\s*,\s*(.+?)\s*,\s*(.+?)\)', r'create_circle(\1, \2, \3)'),
-    (r'ล้างหน้าจอ\(\)', r'clear_screen()'),
-    # --- Math & Data ---
-    (r'รากที่สองของ\((.+?)\)', r'math.sqrt(\1)'),
-    (r'สุ่มเลขจาก\((.+?)\s*ถึง\s*(.+?)\)', r'random.randint(\1, \2)'),
-    (r'เวลาปัจจุบัน\(\)', r'datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")'),
-    # --- Logic ---
-    (r'ถ้า\s+(.+?):', r'if \1:'),
-    (r'มิฉะนั้น:', r'else:'),
-    (r'สำหรับ\s+(\w+)\s+ใน\s+(.+?):', r'for \1 in \2:'),
-    # --- Basic ---
-    (r'แสดงผล\((.+?)\)', r'print(\1)'),
-    (r'ให้\s+(\w+)\s*=\s*(.+)', r'\1 = \2'),
-]
-
-def translate_to_python(thai_code):
-    py_lines = []
-    for line in thai_code.splitlines():
-        indent = line[:-len(line.lstrip())] if line.lstrip() else ""
-        stripped = line.strip()
-        if not stripped or stripped.startswith('#'):
-            py_lines.append(line)
-            continue
-        translated = stripped
-        changed = True
-        iteration = 0
-        while changed and iteration < 20:
-            changed = False
-            iteration += 1
-            for pattern, replacement in KEYWORDS:
-                new_translated = re.sub(pattern, replacement, translated)
-                if new_translated != translated:
-                    translated = new_translated
-                    changed = True
-        py_lines.append(indent + translated)
-    return '\n'.join(py_lines)
-
-# ==========================================
-# Canvas สำหรับวาดรูป
-# ==========================================
-class GameCanvas(Widget):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.entities = []
-    def create_rect(self, x, y, size):
-        with self.canvas:
-            Color(random.random(), random.random(), random.random(), 1)
-            self.entities.append(Rectangle(pos=(float(x), float(y)), size=(float(size), float(size))))
-    def create_circle(self, x, y, size):
-        with self.canvas:
-            Color(random.random(), random.random(), random.random(), 1)
-            self.entities.append(Ellipse(pos=(float(x), float(y)), size=(float(size), float(size))))
-    def clear_screen(self):
-        self.canvas.clear()
-        self.entities = []
-
-# ==========================================
-# แอปพลิเคชันหลัก
-# ==========================================
-class ThaiLangUltimateApp(App):
+class PythonMobileIDE(App):
     def build(self):
-        self.title = "ThaiLang Ultimate (All-in-One)"
-        self.tabs = TabbedPanel(do_default_tab=False)
+        self.title = "Python 3 Mobile IDE & Smart AI Agent"
+        Window.clearcolor = (0.1, 0.1, 0.1, 1)
 
-        # 1. แท็บ AI
-        tab_ai = TabbedPanelItem(text='🤖 AI')
-        layout_ai = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        self.ai_input = TextInput(hint_text='ถามเอไอ(คำถามของคุณ)', multiline=True, size_hint_y=0.3)
-        layout_ai.add_widget(self.ai_input)
-        ai_btn = Button(text='🚀 ส่ง', size_hint_y=None, height=50)
-        ai_btn.bind(on_press=lambda x: self.run_action(self.ai_input.text, self.ai_output, is_ai=True))
-        layout_ai.add_widget(ai_btn)
-        self.ai_output = Label(text='[AI พร้อมตอบ]', halign='left', valign='top', size_hint_y=None)
-        self.ai_output.bind(width=lambda *x: setattr(self.ai_output, 'text_size', (self.ai_output.width, None)))
-        self.ai_output.bind(texture_size=lambda *x: setattr(self.ai_output, 'height', self.ai_output.texture_size[1]))
-        scroll_ai = ScrollView(size_hint=(1, 0.6))
-        scroll_ai.add_widget(self.ai_output)
-        layout_ai.add_widget(scroll_ai)
-        tab_ai.add_widget(layout_ai)
+        # state สำหรับกันเรียกซ้ำ / กัน popup ซ้อน
+        self._running_code = False
+        self._running_ai = False
+        self.popup = None
 
-        # 2. แท็บ โค้ด/Crypto/Game
-        tab_code = TabbedPanelItem(text='💻 โค้ด/Crypto')
-        layout_code = BoxLayout(orientation='vertical')
-        self.game_screen = GameCanvas(size_hint_y=0.3)
-        layout_code.add_widget(self.game_screen)
-        code_control = BoxLayout(orientation='vertical', padding=10, spacing=10, size_hint_y=0.7)
-        self.code_input = TextInput(hint_text='สร้างเหรียญ(...) , ขุดเหรียญ(...) , สร้างสี่เหลี่ยม(...)', multiline=True, size_hint_y=0.4)
-        code_control.add_widget(self.code_input)
-        code_btn = Button(text='▶️ รันโค้ด', size_hint_y=None, height=50)
-        code_btn.bind(on_press=lambda x: self.run_action(self.code_input.text, self.code_output, is_ai=False))
-        code_control.add_widget(code_btn)
-        self.code_output = Label(text='[ผลลัพธ์]', size_hint_y=0.4, halign='left', valign='top')
-        self.code_output.bind(width=lambda *x: setattr(self.code_output, 'text_size', (self.code_output.width, None)))
-        scroll_code = ScrollView(size_hint_y=0.4)
-        scroll_code.add_widget(self.code_output)
-        code_control.add_widget(scroll_code)
-        layout_code.add_widget(code_control)
-        tab_code.add_widget(layout_code)
+        tb_panel = TabbedPanel(do_default_tab=False)
 
-        # 3. แท็บ Hacking & Sniper Bot
-        tab_hack = TabbedPanelItem(text='💀 Hacker/Sniper')
-        layout_hack = BoxLayout(orientation='vertical', padding=10, spacing=10)
-        
-        hack_label = Label(text="คำสั่ง: แฮกระบบ(\"เป้าหมาย\") หรือ เริ่มบอทซุ่มซื้อ()", size_hint_y=None, height=30)
-        layout_hack.add_widget(hack_label)
-        
-        self.hack_input = TextInput(hint_text='แฮกระบบ("เซิร์ฟเวอร์ธนาคาร")', multiline=True, size_hint_y=0.2, font_size=16)
-        layout_hack.add_widget(self.hack_input)
-        
-        hack_btn = Button(text='💀 รันคำสั่ง', size_hint_y=None, height=50, background_color=(0.8, 0.1, 0.1, 1))
-        hack_btn.bind(on_press=lambda x: self.run_action(self.hack_input.text, self.hack_output, is_ai=False))
-        layout_hack.add_widget(hack_btn)
-        
-        self.hack_output = Label(text='[รอรับคำสั่ง...]', halign='left', valign='top', size_hint_y=None)
-        self.hack_output.bind(width=lambda *x: setattr(self.hack_output, 'text_size', (self.hack_output.width, None)))
-        self.hack_output.bind(texture_size=lambda *x: setattr(self.hack_output, 'height', self.hack_output.texture_size[1]))
-        scroll_hack = ScrollView(size_hint=(1, 0.7))
-        scroll_hack.add_widget(self.hack_output)
-        layout_hack.add_widget(scroll_hack)
-        tab_hack.add_widget(layout_hack)
+        # ==========================================================
+        # TAB 1: 💻 โค้ด & รัน
+        # ==========================================================
+        editor_tab = TabbedPanelItem(text='💻 โค้ด & รัน')
+        editor_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
 
-        self.tabs.add_widget(tab_ai)
-        self.tabs.add_widget(tab_code)
-        self.tabs.add_widget(tab_hack)
+        self.code_input = TextInput(
+            text='# พิมพ์โค้ด Python ของคุณที่นี่...\nprint("ยินดีต้อนรับสู่ Python Mobile IDE!")\n\nfor i in range(3):\n    print("กำลังรันรอบที่:", i + 1)',
+            font_size=15,
+            font_name='Roboto',
+            background_color=(0.15, 0.15, 0.15, 1),
+            foreground_color=(0.8, 1.0, 0.8, 1),
+            multiline=True,
+            size_hint_y=0.4
+        )
+        editor_layout.add_widget(self.code_input)
 
-        self.exec_globals = {
-            'create_rect': self.game_screen.create_rect,
-            'create_circle': self.game_screen.create_circle,
-            'clear_screen': self.game_screen.clear_screen,
-            'ask_ai': ask_ai,
-            'create_crypto_contract': create_crypto_contract,
-            'simulate_mining': simulate_mining,
-            'simulate_sniper_bot': simulate_sniper_bot,
-            'hack_system': hack_system,
-            'math': math, 'random': random, 'datetime': datetime, 'hashlib': hashlib, 'time': time,
-            '__builtins__': __builtins__
-        }
-        return self.tabs
+        # แถวที่ 1
+        btn_row1 = BoxLayout(size_hint_y=None, height=45, spacing=10)
+        self.run_btn = Button(text='▶️ รันโค้ด', background_color=(0.1, 0.6, 0.3, 1), font_size=15)
+        self.run_btn.bind(on_press=self.run_code)
+        btn_row1.add_widget(self.run_btn)
 
-    def run_action(self, text, output_label, is_ai=False):
-        if not text.strip():
+        self.save_btn = Button(text='💾 บันทึกไฟล์', background_color=(0.2, 0.4, 0.8, 1), font_size=15)
+        self.save_btn.bind(on_press=self.show_save_popup)
+        btn_row1.add_widget(self.save_btn)
+        editor_layout.add_widget(btn_row1)
+
+        # แถวที่ 2
+        btn_row2 = BoxLayout(size_hint_y=None, height=45, spacing=10)
+        self.clear_out_btn = Button(text='🧹 ล้างผลลัพธ์', background_color=(0.7, 0.5, 0.1, 1), font_size=15)
+        self.clear_out_btn.bind(on_press=self.clear_output)
+        btn_row2.add_widget(self.clear_out_btn)
+
+        self.clear_code_btn = Button(text='🗑️ ล้างโค้ด', background_color=(0.8, 0.2, 0.2, 1), font_size=15)
+        self.clear_code_btn.bind(on_press=self.clear_code)
+        btn_row2.add_widget(self.clear_code_btn)
+        editor_layout.add_widget(btn_row2)
+
+        # พื้นที่แสดงผล
+        self.output_label = Label(
+            text='[ผลลัพธ์การรันจะแสดงที่นี่]',
+            font_size=14,
+            halign='left',
+            valign='top',
+            size_hint_y=None,
+            color=(1, 1, 1, 1)
+        )
+        self.output_label.bind(width=lambda *x: setattr(self.output_label, 'text_size', (self.output_label.width, None)))
+        self.output_label.bind(texture_size=lambda *x: setattr(self.output_label, 'height', self.output_label.texture_size[1]))
+
+        scroll_out = ScrollView(size_hint_y=0.4)
+        scroll_out.add_widget(self.output_label)
+        editor_layout.add_widget(scroll_out)
+
+        editor_tab.add_widget(editor_layout)
+        tb_panel.add_widget(editor_tab)
+
+        # ==========================================================
+        # TAB 2: 🤖 AI ค้นหาข้อมูล
+        # ==========================================================
+        ai_tab = TabbedPanelItem(text='🤖 AI ค้นหาข้อมูล')
+        ai_layout = BoxLayout(orientation='vertical', padding=10, spacing=10)
+
+        # ช่อง API Key + ปุ่ม show/hide
+        key_layout = BoxLayout(size_hint_y=None, height=40, spacing=5)
+        key_layout.add_widget(Label(text='API Key:', size_hint_x=None, width=70, font_size=14))
+        self.api_key_input = TextInput(
+            text='',
+            hint_text='ใส่ Gemini API Key ที่นี่',
+            multiline=False,
+            password=True,
+            font_size=14
+        )
+        key_layout.add_widget(self.api_key_input)
+
+        self.toggle_key_btn = Button(
+            text='👁️',
+            size_hint_x=None,
+            width=50,
+            background_color=(0.4, 0.4, 0.4, 1),
+            font_size=16
+        )
+        self.toggle_key_btn.bind(on_press=self.toggle_api_key_visibility)
+        key_layout.add_widget(self.toggle_key_btn)
+        ai_layout.add_widget(key_layout)
+
+        # พื้นที่ผลลัพธ์ AI
+        self.ai_chat_label = Label(
+            text='[ยินดีต้อนรับ! กรอก API Key ด้านบน แล้วพิมพ์หัวข้อที่ต้องการให้ AI ค้นหาข้อมูลเชิงลึกได้เลย]',
+            font_size=14,
+            halign='left',
+            valign='top',
+            size_hint_y=None,
+            color=(0.9, 0.9, 1.0, 1)
+        )
+        self.ai_chat_label.bind(width=lambda *x: setattr(self.ai_chat_label, 'text_size', (self.ai_chat_label.width, None)))
+        self.ai_chat_label.bind(texture_size=lambda *x: setattr(self.ai_chat_label, 'height', self.ai_chat_label.texture_size[1]))
+
+        scroll_ai = ScrollView(size_hint_y=0.7)
+        scroll_ai.add_widget(self.ai_chat_label)
+        ai_layout.add_widget(scroll_ai)
+
+        # แถบพิมพ์หัวข้อ + ปุ่มสืบค้น
+        prompt_layout = BoxLayout(size_hint_y=None, height=50, spacing=10)
+        self.ai_prompt_input = TextInput(
+            text='',
+            hint_text='พิมพ์หัวข้อที่อยากให้ AI ค้นหาข้อมูล...',
+            multiline=False,
+            font_size=14,
+            size_hint_x=0.75
+        )
+        self.research_btn = Button(
+            text='🔍 สืบค้นข้อมูล',
+            background_color=(0.2, 0.5, 0.8, 1),
+            font_size=14,
+            size_hint_x=0.25
+        )
+        self.research_btn.bind(on_press=self.run_ai_researcher)
+
+        prompt_layout.add_widget(self.ai_prompt_input)
+        prompt_layout.add_widget(self.research_btn)
+        ai_layout.add_widget(prompt_layout)
+
+        ai_tab.add_widget(ai_layout)
+        tb_panel.add_widget(ai_tab)
+
+        return tb_panel
+
+    # ==========================================================
+    # helper: อัปเดต UI จาก thread อื่นอย่างปลอดภัย
+    # ==========================================================
+    def _set_output(self, text):
+        Clock.schedule_once(lambda dt: setattr(self.output_label, 'text', text))
+
+    def _set_ai_text(self, text):
+        Clock.schedule_once(lambda dt: setattr(self.ai_chat_label, 'text', text))
+
+    def _set_btn_enabled(self, btn, enabled):
+        def _apply(dt):
+            btn.disabled = not enabled
+        Clock.schedule_once(_apply)
+
+    # ==========================================================
+    # ฟังก์ชันฝั่ง IDE
+    # ==========================================================
+    def run_code(self, instance):
+        if self._running_code:
             return
-        output_label.text = "⏳ กำลังประมวลผล..."
-        py_code = translate_to_python(text)
-        old_stdout = sys.stdout
-        new_stdout = StringIO()
-        sys.stdout = new_stdout
+        code = self.code_input.text
+        if not code.strip():
+            self.output_label.text = "❌ ไม่มีโค้ดให้รัน"
+            return
+
+        self._running_code = True
+        self._set_btn_enabled(self.run_btn, False)
+        self.output_label.text = "⏳ กำลังรัน..."
+
+        def worker():
+            buf = io.StringIO()
+            try:
+                # ใช้ builtins module ตรง ๆ เพื่อความแน่นอน
+                exec_globals = {'__builtins__': builtins}
+                # redirect stdout เฉพาะ thread นี้
+                with _redirect_stdout(buf):
+                    exec(code, exec_globals)
+                output = buf.getvalue()
+                result = output if output else "✅ รันสำเร็จ (ไม่มี Output)"
+            except SystemExit:
+                result = "⚠️ โค้ดเรียก sys.exit() — หยุดการทำงาน"
+            except BaseException:
+                result = f"❌ เกิดข้อผิดพลาด:\n{traceback.format_exc()}"
+            finally:
+                self._running_code = False
+                self._set_btn_enabled(self.run_btn, True)
+                self._set_output(result)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def clear_output(self, instance):
+        self.output_label.text = "[ผลลัพธ์ถูกเคลียร์แล้ว]"
+
+    def clear_code(self, instance):
+        self.code_input.text = ""
+        self.output_label.text = "🗑️ ช่องพิมพ์โค้ดว่างเปล่าแล้ว"
+
+    # ==========================================================
+    # ฟังก์ชันฝั่ง AI
+    # ==========================================================
+    def toggle_api_key_visibility(self, instance):
+        self.api_key_input.password = not self.api_key_input.password
+        self.toggle_key_btn.text = '🙈' if self.api_key_input.password else '👁️'
+
+    def run_ai_researcher(self, instance):
+        if not AI_AVAILABLE:
+            self.ai_chat_label.text = (
+                "❌ ไม่พบไลบรารี google-genai\n"
+                "กรุณาติดตั้งด้วยคำสั่ง: pip install google-genai"
+            )
+            return
+
+        if self._running_ai:
+            return
+
+        api_key = self.api_key_input.text.strip()
+        topic = self.ai_prompt_input.text.strip()
+
+        if not api_key:
+            self.ai_chat_label.text = "⚠️ กรุณาใส่ Gemini API Key ที่ช่องด้านบนก่อนใช้งาน"
+            return
+        if not topic:
+            self.ai_chat_label.text = "⚠️ กรุณาพิมพ์หัวข้อที่ต้องการค้นหาก่อน"
+            return
+
+        self._running_ai = True
+        self._set_btn_enabled(self.research_btn, False)
+        self.ai_chat_label.text = f"⏳ กำลังให้ AI ค้นหาและวิเคราะห์ข้อมูลเรื่อง: '{topic}'..."
+
+        def worker():
+            try:
+                client = genai.Client(api_key=api_key)
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=(
+                        "คุณคือ AI นักวิจัยผู้เชี่ยวชาญ ค้นหา วิเคราะห์ "
+                        f"และสรุปข้อมูลเชิงลึกที่แม่นยำที่สุดเกี่ยวกับหัวข้อนี้: {topic}"
+                    ),
+                )
+                text = f"📌 หัวข้อ: {topic}\n\n--------------------\n🤖 รายงานข้อมูลจาก AI:\n{response.text}"
+                self._set_ai_text(text)
+                Clock.schedule_once(lambda dt: setattr(self.ai_prompt_input, 'text', ''))
+            except Exception as e:
+                self._set_ai_text(f"❌ เกิดข้อผิดพลาดในการเชื่อมต่อ:\n{str(e)}")
+            finally:
+                self._running_ai = False
+                self._set_btn_enabled(self.research_btn, True)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    # ==========================================================
+    # Save popup
+    # ==========================================================
+    def show_save_popup(self, instance):
+        # กัน popup ซ้อน
+        if self.popup is not None and self.popup._window is not None:
+            return
+
+        content = BoxLayout(orientation='vertical', padding=10, spacing=10)
+        self.filename_input = TextInput(
+            text='my_script.py',
+            multiline=False,
+            size_hint_y=None,
+            height=40,
+            font_size=16
+        )
+        content.add_widget(Label(text="ตั้งชื่อไฟล์ (ต้องลงท้ายด้วย .py):", size_hint_y=None, height=30))
+        content.add_widget(self.filename_input)
+
+        btn_layout = BoxLayout(size_hint_y=None, height=40, spacing=10)
+        save_confirm_btn = Button(text="บันทึก", background_color=(0.1, 0.6, 0.3, 1))
+        cancel_btn = Button(text="ยกเลิก", background_color=(0.8, 0.2, 0.2, 1))
+
+        btn_layout.add_widget(save_confirm_btn)
+        btn_layout.add_widget(cancel_btn)
+        content.add_widget(btn_layout)
+
+        self.popup = Popup(title='บันทึกโค้ด', content=content, size_hint=(0.9, 0.4))
+        save_confirm_btn.bind(on_press=self.save_file)
+        cancel_btn.bind(on_press=self.popup.dismiss)
+        self.popup.bind(on_dismiss=self._on_popup_dismiss)
+        self.popup.open()
+
+    def _on_popup_dismiss(self, *args):
+        self.popup = None
+
+    def save_file(self, instance):
+        filename = self.filename_input.text.strip()
+        if not filename:
+            self.output_label.text = "❌ กรุณาตั้งชื่อไฟล์"
+            return
+        if not filename.endswith('.py'):
+            filename += '.py'
         try:
-            exec(py_code, self.exec_globals)
-        except Exception:
-            print(f"❌ Error: {traceback.format_exc().splitlines()[-1]}")
-        finally:
-            sys.stdout = old_stdout
-        output_label.text = new_stdout.getvalue()
-        if is_ai:
-            self.ai_input.text = ""
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(self.code_input.text)
+            self.output_label.text = f"💾 บันทึกไฟล์ '{filename}' สำเร็จ!"
+            if self.popup:
+                self.popup.dismiss()
+        except Exception as e:
+            self.output_label.text = f"❌ บันทึกไม่สำเร็จ: {str(e)}"
+            if self.popup:
+                self.popup.dismiss()
+
+
+# ==========================================================
+# context manager: redirect stdout แบบ thread-local
+# ==========================================================
+import contextlib
+
+class _redirect_stdout:
+    """
+    ใช้ contextlib.redirect_stdout ภายใน แต่ sys.stdout เป็น global
+    ถ้าหลาย thread รันพร้อมกันจะชนกัน — แต่ในแอปนี้เรารันทีละครั้ง
+    (มี _running_code guard) จึงปลอดภัยพอ
+    """
+    def __init__(self, new_target):
+        self._cm = contextlib.redirect_stdout(new_target)
+
+    def __enter__(self):
+        return self._cm.__enter__()
+
+    def __exit__(self, *exc):
+        return self._cm.__exit__(*exc)
+
 
 if __name__ == '__main__':
-    ThaiLangUltimateApp().run()
+    PythonMobileIDE().run()
