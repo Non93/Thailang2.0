@@ -1,20 +1,14 @@
-name: Optimized Android Build
-
-on:
-  push:
-    branches:
-      - main
-  workflow_dispatch: # ปุ่มสำหรับกดสั่ง Build มือจากหน้า GitHub ได้โดยตรง
+name: Build
+on: [push, pull_request]
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      # 1. ตั้งค่าพื้นฐาน Java และ Python
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
@@ -25,56 +19,38 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          cache: 'pip'
+          # ปิดการมองหา requirements.txt เพื่อไม่ให้ Error
+          # cache: 'pip'
 
-      # 2. ติดตั้ง System Dependencies แบบรวบรัดและครอบคลุม
       - name: Install System Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential git ffmpeg libsdl2-dev libsdl2-image-dev \
-            libsdl2-mixer-dev libsdl2-ttf-dev libportmidi-dev libswscale-dev \
-            libavformat-dev libavcodec-dev zlib1g-dev autoconf libtool \
-            automake m4 pkg-config libncurses5-dev libncursesw5-dev \
-            cmake libffi-dev libssl-dev zip unzip ccache
-          sudo apt-get clean
-          rm -rf /var/lib/apt/lists/*
+          sudo apt-get install -y \
+            git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev \
+            libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev \
+            build-essential ccache libltdl-dev
 
-      # 3. ติดตั้ง Buildozer และ Cython เวอร์ชันที่เสถียรที่สุดสำหรับ Kivy
       - name: Install Python Dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
-          pip install "cython<3.0.0" # Cython 0.29.x เสถียรที่สุดสำหรับ Kivy C-extensions
-          pip install buildozer
+          python -m pip install --upgrade pip
+          pip install --user --upgrade buildozer cython virtualenv
 
-      # 4. ระบบ Cache ขั้นสูง (เก็บทั้ง SDK/NDK และ Ccache)
       - name: Cache Buildozer Artifacts & SDK
         uses: actions/cache@v4
         with:
           path: |
             ~/.buildozer
-            .buildozer
-            ~/.ccache
-          key: ${{ runner.os }}-buildozer-v1-${{ hashFiles('buildozer.spec') }}
+          key: buildozer-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-buildozer-v1-
+            buildozer-
 
-      # 5. สั่ง Build APK โดยส่งผ่านคำตอบรับ License อัตโนมัติ
       - name: Build APK with Buildozer
-        env:
-          ACCEPT_BUILD_TOOLS_CHECKSUM: "true"
         run: |
-          # ยินยอมรับ License ของ Android SDK ล่วงหน้าทุกรายการ
-          mkdir -p ~/.android
-          touch ~/.android/repositories.cfg
-          
-          # รัน Buildozer แบบ Verbose เพื่อดึง Log รายละเอียด
-          buildozer -v android debug
+          export PATH=$PATH:~/.local/bin
+          yes | buildozer -v android debug
 
-      # 6. อัปโหลดไฟล์ APK เก็บไว้ให้ดาวน์โหลด
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Android-APK
+          name: Package
           path: bin/*.apk
-          retention-days: 7 # เก็บไฟล์ไว้ 7 วันเพื่อประหยัดพื้นที่คลาวด์
